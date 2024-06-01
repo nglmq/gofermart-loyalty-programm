@@ -3,6 +3,7 @@ package server
 import (
 	"github.com/go-chi/chi/v5"
 	"github.com/nglmq/gofermart-loyalty-programm/internal/config"
+	"github.com/nglmq/gofermart-loyalty-programm/internal/http-server/handlers"
 	"github.com/nglmq/gofermart-loyalty-programm/internal/http-server/handlers/orders"
 	"github.com/nglmq/gofermart-loyalty-programm/internal/http-server/handlers/user-auth"
 	"github.com/nglmq/gofermart-loyalty-programm/internal/storage/postgres"
@@ -22,7 +23,7 @@ func Start() (http.Handler, error) {
 	r := chi.NewRouter()
 
 	r.Route("/api/user/", func(r chi.Router) {
-		r.Post("/register/", user_auth.RegistrationHandle(storage))
+		r.Post("/register/", handlers.RegistrationHandle(storage))
 		r.Post("/login/", user_auth.LoginHandle(storage))
 		r.Post("/orders/", orders.LoadOrderHandle(storage))
 	})

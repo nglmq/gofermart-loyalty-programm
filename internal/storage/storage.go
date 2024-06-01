@@ -3,9 +3,9 @@ package storage
 import "errors"
 
 var (
-	LoginAlreadyExists              = errors.New("login	already exists")
-	UserNotFound                    = errors.New("user not found")
-	IncorrectPassword               = errors.New("incorrect password")
-	OrderAlreadyLoadedByUser        = errors.New("order already loaded")
-	OrderAlreadyLoadedByAnotherUser = errors.New("order already loaded by another user")
+	ErrLoginAlreadyExists              = errors.New("login	already exists")
+	ErrUserNotFound                    = errors.New("user not found")
+	ErrIncorrectPassword               = errors.New("incorrect password")
+	ErrOrderAlreadyLoadedByUser        = errors.New("order already loaded")
+	ErrOrderAlreadyLoadedByAnotherUser = errors.New("order already loaded by another user")
 )

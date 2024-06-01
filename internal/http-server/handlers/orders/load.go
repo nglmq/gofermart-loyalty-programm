@@ -38,25 +38,25 @@ func LoadOrderHandle(orderLoader OrderLoader) http.HandlerFunc {
 			http.Error(w, "Error reading request body", http.StatusBadRequest)
 			return
 		}
-		orderId := string(body)
-		if orderId == "" {
+		orderID := string(body)
+		if orderID == "" {
 			http.Error(w, "No order ID provided", http.StatusBadRequest)
 			return
 		}
 
-		intOrderId, err := strconv.Atoi(orderId)
-		if !validation.Valid(intOrderId) {
+		intOrderID, _ := strconv.Atoi(orderID)
+		if !validation.Valid(intOrderID) {
 			http.Error(w, "Invalid order ID", http.StatusUnprocessableEntity)
 			return
 		}
 
-		err = orderLoader.LoadOrder(r.Context(), login, orderId)
+		err = orderLoader.LoadOrder(r.Context(), login, orderID)
 		if err != nil {
-			if errors.Is(err, storage.OrderAlreadyLoadedByUser) {
+			if errors.Is(err, storage.ErrOrderAlreadyLoadedByUser) {
 				http.Error(w, "Order already loaded", http.StatusOK)
 				return
 			}
-			if errors.Is(err, storage.OrderAlreadyLoadedByAnotherUser) {
+			if errors.Is(err, storage.ErrOrderAlreadyLoadedByAnotherUser) {
 				http.Error(w, "Order already loaded by another user", http.StatusConflict)
 				return
 			}

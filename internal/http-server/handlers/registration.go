@@ -1,4 +1,4 @@
-package user_auth
+package handlers
 
 import (
 	"context"
@@ -11,57 +11,52 @@ import (
 	"net/http"
 )
 
-type LoginData struct {
+type RegistrationData struct {
 	Login    string `json:"login" validate:"required"`
 	Password string `json:"password" validate:"required"`
 }
 
-type UserGetter interface {
-	GetUser(ctx context.Context, login, password string) (string, error)
+type UserSaver interface {
+	SaveUser(ctx context.Context, login, password string) error
 }
 
-func LoginHandle(userGetter UserGetter) http.HandlerFunc {
+func RegistrationHandle(userSaver UserSaver) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method is not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
-		var data LoginData
+		var data RegistrationData
 
 		if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
-			slog.Info("invalid login request", err)
+			slog.Info("invalid register request", err)
 
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		if err := validator.New().Struct(data); err != nil {
-			slog.Error("invalid validation for login", err)
+			slog.Error("invalid validation for reg", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		_, err := userGetter.GetUser(r.Context(), data.Login, data.Password)
-		if errors.Is(err, storage.IncorrectPassword) {
-			slog.Info("password is incorrect")
+		err := userSaver.SaveUser(r.Context(), data.Login, data.Password)
+		if errors.Is(err, storage.ErrLoginAlreadyExists) {
+			slog.Info("user already exists", data.Login)
 
-			http.Error(w, "password is incorrect", http.StatusUnauthorized)
+			http.Error(w, "user already exists", http.StatusConflict)
 			return
 		}
 		if err != nil {
-			if errors.Is(err, storage.UserNotFound) {
-				slog.Info("user not found")
-
-				http.Error(w, "user not found", http.StatusUnauthorized)
-				return
-			}
-			slog.Info("failed to get user while login", err)
+			slog.Info("failed to save user while reg", err)
 
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
+		slog.Info("user saved")
 		tokenString, err := auth.BuildJWTString(data.Login)
 		if err != nil {
 			slog.Info("failed to create JWT token", err)
@@ -79,6 +74,7 @@ func LoginHandle(userGetter UserGetter) http.HandlerFunc {
 		})
 
 		w.Write([]byte(data.Login))
+
 		w.WriteHeader(http.StatusOK)
 	}
 }

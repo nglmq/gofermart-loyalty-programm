@@ -60,7 +60,7 @@ func New() (*Storage, error) {
 //		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == pgerrcode.UniqueViolation {
 //			slog.Error("user already exists", login)
 //
-//			return fmt.Errorf("%w", storage.LoginAlreadyExists)
+//			return fmt.Errorf("%w", storage.ErrLoginAlreadyExists)
 //		} else {
 //			fmt.Println("user unique)")
 //		}
@@ -80,7 +80,7 @@ func (s *Storage) SaveUser(ctx context.Context, login, password string) error {
 	}
 	if exists {
 		slog.Error("user already exists", login)
-		return fmt.Errorf("%w", storage.LoginAlreadyExists)
+		return fmt.Errorf("%w", storage.ErrLoginAlreadyExists)
 	}
 
 	stmt, err := s.db.PrepareContext(ctx, `INSERT INTO users(login, password) VALUES ($1, $2)`)
@@ -108,7 +108,7 @@ func (s *Storage) GetUser(ctx context.Context, login, password string) (string, 
 
 	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE login  =  $1)`, login).Scan(&userExists)
 	if err != nil {
-		return "", storage.UserNotFound
+		return "", storage.ErrUserNotFound
 	}
 
 	err = s.db.QueryRowContext(ctx, `SELECT password FROM users WHERE login = $1`, login).Scan(&correctPassword)
@@ -117,16 +117,16 @@ func (s *Storage) GetUser(ctx context.Context, login, password string) (string, 
 	}
 
 	if !validation.CheckPassword(password, correctPassword) {
-		return "", storage.IncorrectPassword
+		return "", storage.ErrIncorrectPassword
 	}
 
 	return login, nil
 }
 
-func (s *Storage) LoadOrder(ctx context.Context, login, orderId string) error {
+func (s *Storage) LoadOrder(ctx context.Context, login, orderID string) error {
 	var loadByLogin string
 
-	err := s.db.QueryRowContext(ctx, "SELECT user_login FROM orders WHERE orderId = $1", orderId).Scan(&loadByLogin)
+	err := s.db.QueryRowContext(ctx, "SELECT user_login FROM orders WHERE orderId = $1", orderID).Scan(&loadByLogin)
 	fmt.Printf("login: '%s'\n", loadByLogin)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("failed to check order existence: %w", err)
@@ -135,11 +135,11 @@ func (s *Storage) LoadOrder(ctx context.Context, login, orderId string) error {
 	if loadByLogin == login {
 		// Заказ уже был загружен текущим пользователем
 		slog.Info("order already loaded by this user", login)
-		return storage.OrderAlreadyLoadedByUser
+		return storage.ErrOrderAlreadyLoadedByUser
 	} else if loadByLogin != "" {
 		// Заказ уже был загружен другим пользователем
 		slog.Info("order already loaded by another user", loadByLogin)
-		return storage.OrderAlreadyLoadedByAnotherUser
+		return storage.ErrOrderAlreadyLoadedByAnotherUser
 	}
 
 	stmt, err := s.db.PrepareContext(ctx, `INSERT INTO orders(user_login, orderId) VALUES ($1, $2)`)
@@ -148,7 +148,7 @@ func (s *Storage) LoadOrder(ctx context.Context, login, orderId string) error {
 	}
 	defer stmt.Close()
 
-	_, err = stmt.ExecContext(ctx, login, orderId)
+	_, err = stmt.ExecContext(ctx, login, orderID)
 	if err != nil {
 		return fmt.Errorf("failed to insert order: %w", err)
 	}
