@@ -23,6 +23,7 @@ type UserSaver interface {
 func RegistrationHandle(userSaver UserSaver) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
+			slog.Info("invalid method", r.Method)
 			http.Error(w, "Method is not allowed", http.StatusMethodNotAllowed)
 			return
 		}
@@ -37,7 +38,7 @@ func RegistrationHandle(userSaver UserSaver) http.HandlerFunc {
 		}
 
 		if err := validator.New().Struct(data); err != nil {
-			slog.Error("invalid validation for reg", err)
+			slog.Info("invalid validation for reg", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
