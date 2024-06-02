@@ -65,17 +65,17 @@ func RegistrationHandle(userSaver UserSaver) http.HandlerFunc {
 			return
 		}
 
-		//w.Header().Set("Authorization", tokenString)
-		http.SetCookie(w, &http.Cookie{
-			Name:     "User",
-			Value:    tokenString,
-			Path:     "/",
-			HttpOnly: true,
-			Secure:   true,
-		})
+		//http.SetCookie(w, &http.Cookie{
+		//	Name:     "User",
+		//	Value:    tokenString,
+		//	Path:     "/",
+		//	HttpOnly: true,
+		//	Secure:   true,
+		//})
+
+		w.Header().Set("Authorization", tokenString)
+		w.WriteHeader(http.StatusOK)
 
 		w.Write([]byte(data.Login))
-
-		w.WriteHeader(http.StatusOK)
 	}
 }

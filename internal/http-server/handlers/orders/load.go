@@ -18,19 +18,20 @@ type OrderLoader interface {
 
 func LoadOrderHandle(orderLoader OrderLoader) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		//authHeader := r.Header.Get("Authorization")
-		//if authHeader == "" {
-		//	http.Error(w, "User not authorized", http.StatusUnauthorized)
-		//	return
-		//}
-
-		authCookie, err := r.Cookie("User")
-		if err != nil {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
 			http.Error(w, "User not authorized", http.StatusUnauthorized)
 			return
 		}
 
-		login := auth.GetUserID(authCookie.Value)
+		//authCookie, err := r.Cookie("User")
+		//if err != nil {
+		//	http.Error(w, "User not authorized", http.StatusUnauthorized)
+		//	return
+		//}
+
+		//login := auth.GetUserID(authCookie.Value)
+		login := auth.GetUserID(authHeader)
 		fmt.Println(login)
 
 		body, err := io.ReadAll(r.Body)
@@ -64,7 +65,7 @@ func LoadOrderHandle(orderLoader OrderLoader) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
+		
 		w.WriteHeader(http.StatusAccepted)
 		w.Write([]byte("Order loaded"))
 	}
