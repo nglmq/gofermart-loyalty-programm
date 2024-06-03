@@ -27,6 +27,7 @@ func Start() (http.Handler, error) {
 		r.Post("/register", handlers.RegistrationHandle(storage))
 		r.Post("/login", handlers.LoginHandle(storage))
 		r.Post("/orders", orders.LoadOrderHandle(storage))
+		r.Get("/orders", orders.GetOrdersHandle(storage))
 	})
 
 	return r, nil

@@ -3,7 +3,6 @@ package orders
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/nglmq/gofermart-loyalty-programm/internal/auth"
 	"github.com/nglmq/gofermart-loyalty-programm/internal/storage"
 	"github.com/nglmq/gofermart-loyalty-programm/internal/validation"
@@ -24,15 +23,7 @@ func LoadOrderHandle(orderLoader OrderLoader) http.HandlerFunc {
 			return
 		}
 
-		//authCookie, err := r.Cookie("User")
-		//if err != nil {
-		//	http.Error(w, "User not authorized", http.StatusUnauthorized)
-		//	return
-		//}
-
-		//login := auth.GetUserID(authCookie.Value)
 		login := auth.GetUserID(authHeader)
-		fmt.Println(login)
 
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -65,7 +56,7 @@ func LoadOrderHandle(orderLoader OrderLoader) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		
+
 		w.WriteHeader(http.StatusAccepted)
 		w.Write([]byte("Order loaded"))
 	}
