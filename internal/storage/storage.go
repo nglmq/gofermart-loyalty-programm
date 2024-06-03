@@ -9,4 +9,6 @@ var (
 	ErrOrderAlreadyLoadedByUser        = errors.New("order already loaded")
 	ErrOrderAlreadyLoadedByAnotherUser = errors.New("order already loaded by another user")
 	ErrNoOrders                        = errors.New("no orders found")
+	ErrNotEnoughBalance                = errors.New("not enough balance")
+	ErrNoWithdrawalsFound              = errors.New("no withdrawals found")
 )

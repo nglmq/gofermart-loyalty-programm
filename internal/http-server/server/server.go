@@ -4,6 +4,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/nglmq/gofermart-loyalty-programm/internal/config"
 	"github.com/nglmq/gofermart-loyalty-programm/internal/http-server/handlers"
+	"github.com/nglmq/gofermart-loyalty-programm/internal/http-server/handlers/balance"
 	"github.com/nglmq/gofermart-loyalty-programm/internal/http-server/handlers/orders"
 	"github.com/nglmq/gofermart-loyalty-programm/internal/middleware/logger"
 	"github.com/nglmq/gofermart-loyalty-programm/internal/storage/postgres"
@@ -27,7 +28,10 @@ func Start() (http.Handler, error) {
 		r.Post("/register", handlers.RegistrationHandle(storage))
 		r.Post("/login", handlers.LoginHandle(storage))
 		r.Post("/orders", orders.LoadOrderHandle(storage))
+		r.Post("/withdraw", balance.RequestWithdrawHandle(storage))
 		r.Get("/orders", orders.GetOrdersHandle(storage))
+		r.Get("/balance", balance.CheckBalanceHandle(storage))
+		r.Get("/withdrawals", balance.GetWithdrawalsHandle(storage))
 	})
 
 	return r, nil
