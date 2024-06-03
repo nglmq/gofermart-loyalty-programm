@@ -178,12 +178,6 @@ func (s *Storage) LoadOrder(ctx context.Context, login, orderID string) error {
 }
 
 func (s *Storage) GetOrders(ctx context.Context, login string) ([]Order, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return []Order{}, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback()
-
 	rows, err := s.db.QueryContext(ctx, "SELECT orderId, status, accrual, uploaded_at FROM orders WHERE user_login = $1 ORDER BY uploaded_at ASC", login)
 	if err != nil {
 		return []Order{}, fmt.Errorf("failed to query orders: %w", err)
@@ -212,10 +206,6 @@ func (s *Storage) GetOrders(ctx context.Context, login string) ([]Order, error) 
 
 	if len(orders) == 0 {
 		return []Order{}, storage.ErrNoOrders
-	}
-
-	if err := tx.Commit(); err != nil {
-		return []Order{}, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return orders, nil

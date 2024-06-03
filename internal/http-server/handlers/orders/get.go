@@ -27,7 +27,7 @@ func GetOrdersHandle(orderGetter OrderGetter) http.HandlerFunc {
 		login := auth.GetUserID(authHeader)
 		slog.Info(login + "LOGIN FOR GETTING ORDERS")
 
-		orders, err := orderGetter.GetOrders(r.Context(), login)
+		orders, err := orderGetter.GetOrders(context.Background(), login)
 		slog.Info("len of orders slice:", len(orders))
 		if err != nil {
 			if errors.Is(err, storage.ErrNoOrders) {
