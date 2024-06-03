@@ -58,7 +58,7 @@ func New() (*Storage, error) {
     	user_login TEXT NOT NULL,
     	orderId TEXT NOT NULL UNIQUE,
     	status TEXT NOT NULL DEFAULT 'NEW',
-    	accrual INT,
+    	accrual FLOAT,
     	uploaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	    FOREIGN KEY (user_login) REFERENCES users (login));
 	`)
@@ -178,7 +178,8 @@ func (s *Storage) LoadOrder(ctx context.Context, login, orderID string) error {
 }
 
 func (s *Storage) GetOrders(ctx context.Context, login string) ([]Order, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT orderId, status, accrual, uploaded_at FROM orders WHERE user_login = $1 ORDER BY uploaded_at ASC", login)
+	//rows, err := s.db.QueryContext(ctx, "SELECT orderId, status, accrual, uploaded_at FROM orders WHERE user_login = $1 ORDER BY uploaded_at ASC", login)
+	rows, err := s.db.QueryContext(ctx, "SELECT orderId, status, uploaded_at FROM orders WHERE user_login = $1 ORDER BY uploaded_at ASC", login)
 	if err != nil {
 		return []Order{}, fmt.Errorf("failed to query orders: %w", err)
 	}
@@ -188,13 +189,16 @@ func (s *Storage) GetOrders(ctx context.Context, login string) ([]Order, error) 
 
 	for rows.Next() {
 		var order Order
-		var accrual sql.NullFloat64
+		//var accrual sql.NullFloat64
 
-		if err := rows.Scan(&order.Number, &order.Status, &accrual, &order.UploadedAt); err != nil {
+		//if err := rows.Scan(&order.Number, &order.Status, &order.Accrual, &order.UploadedAt); err != nil {
+		//	return []Order{}, fmt.Errorf("failed to scan order: %w", err)
+		//}
+		//if accrual.Valid {
+		//	order.Accrual = accrual.Float64
+		//}
+		if err := rows.Scan(&order.Number, &order.Status, &order.UploadedAt); err != nil {
 			return []Order{}, fmt.Errorf("failed to scan order: %w", err)
-		}
-		if accrual.Valid {
-			order.Accrual = accrual.Float64
 		}
 
 		orders = append(orders, order)
@@ -223,16 +227,6 @@ func (s *Storage) GetBalance(ctx context.Context, login string) (Balance, error)
 }
 
 func (s *Storage) UpdateBalance(ctx context.Context, login string, amount float64) error {
-	//var balance float64
-	//
-	//err := s.db.QueryRowContext(ctx, "SELECT current_balance FROM balances WHERE user_login  =  $1", login).Scan(&balance)
-	//if err != nil && !errors.Is(err, sql.ErrNoRows) {
-	//	return fmt.Errorf("failed to query balance: %w", err)
-	//}
-	//if balance < amount {
-	//	return storage.ErrNotEnoughBalance
-	//}
-
 	stmt, err := s.db.PrepareContext(ctx, `UPDATE balances SET current_balance = current_balance - $1, withdrawn  =  withdrawn  +  $1 WHERE user_login  =  $2`)
 	if err != nil {
 		return fmt.Errorf("failed to prepare update statement: %w", err)

@@ -18,17 +18,22 @@ type OrderGetter interface {
 func GetOrdersHandle(orderGetter OrderGetter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
+
 		slog.Info(authHeader)
+
 		if authHeader == "" {
 			http.Error(w, "User not authorized", http.StatusUnauthorized)
 			return
 		}
 
 		login := auth.GetUserID(authHeader)
+
 		slog.Info(login + "LOGIN FOR GETTING ORDERS")
 
-		orders, err := orderGetter.GetOrders(context.Background(), login)
+		orders, err := orderGetter.GetOrders(r.Context(), login)
+
 		slog.Info("len of orders slice:", len(orders))
+
 		if err != nil {
 			if errors.Is(err, storage.ErrNoOrders) {
 				http.Error(w, "No orders found", http.StatusNoContent)
@@ -40,7 +45,9 @@ func GetOrdersHandle(orderGetter OrderGetter) http.HandlerFunc {
 		}
 
 		response, err := json.Marshal(orders)
+
 		slog.Info(string(response))
+
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
