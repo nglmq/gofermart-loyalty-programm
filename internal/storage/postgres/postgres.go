@@ -20,7 +20,7 @@ type Storage struct {
 type Order struct {
 	Number     string    `json:"number" db:"orderId"`
 	Status     string    `json:"status" db:"status"`
-	Accrual    string    `json:"accrual,omitempty" db:"accrual"`
+	Accrual    float64   `json:"accrual,omitempty" db:"accrual"`
 	UploadedAt time.Time `json:"uploaded_at" db:"uploaded_at"`
 }
 
@@ -188,14 +188,14 @@ func (s *Storage) GetOrders(ctx context.Context, login string) ([]Order, error) 
 
 	for rows.Next() {
 		var order Order
-		var accrual sql.NullString
+		var accrual sql.NullFloat64
 
 		if err := rows.Scan(&order.Number, &order.Status, &accrual, &order.UploadedAt); err != nil {
 			return []Order{}, fmt.Errorf("failed to scan order: %w", err)
 		}
 
 		if accrual.Valid {
-			order.Accrual = accrual.String
+			order.Accrual = accrual.Float64
 		}
 
 		orders = append(orders, order)
