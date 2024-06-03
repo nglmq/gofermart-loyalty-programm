@@ -58,7 +58,7 @@ func New() (*Storage, error) {
     	user_login TEXT NOT NULL,
     	orderId TEXT NOT NULL UNIQUE,
     	status TEXT NOT NULL DEFAULT 'NEW',
-    	accrual TEXT,
+    	accrual INT,
     	uploaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	    FOREIGN KEY (user_login) REFERENCES users (login));
 	`)
@@ -178,6 +178,12 @@ func (s *Storage) LoadOrder(ctx context.Context, login, orderID string) error {
 }
 
 func (s *Storage) GetOrders(ctx context.Context, login string) ([]Order, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return []Order{}, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
 	rows, err := s.db.QueryContext(ctx, "SELECT orderId, status, accrual, uploaded_at FROM orders WHERE user_login = $1 ORDER BY uploaded_at ASC", login)
 	if err != nil {
 		return []Order{}, fmt.Errorf("failed to query orders: %w", err)
@@ -193,7 +199,6 @@ func (s *Storage) GetOrders(ctx context.Context, login string) ([]Order, error) 
 		if err := rows.Scan(&order.Number, &order.Status, &accrual, &order.UploadedAt); err != nil {
 			return []Order{}, fmt.Errorf("failed to scan order: %w", err)
 		}
-
 		if accrual.Valid {
 			order.Accrual = accrual.Float64
 		}
@@ -207,6 +212,10 @@ func (s *Storage) GetOrders(ctx context.Context, login string) ([]Order, error) 
 
 	if len(orders) == 0 {
 		return []Order{}, storage.ErrNoOrders
+	}
+
+	if err := tx.Commit(); err != nil {
+		return []Order{}, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return orders, nil
