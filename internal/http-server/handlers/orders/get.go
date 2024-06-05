@@ -133,7 +133,7 @@ func GetOrdersHandle(updater DataUpdater, orderGetter OrderGetter) http.HandlerF
 //}
 
 func ActualiseOrderData(updater DataUpdater, orderID string) error {
-	url := "http://" + config.AccrualSystemAddress + "/api/user/orders/" + orderID
+	url := "http://" + config.AccrualSystemAddress + "/api/orders/" + orderID
 	var order Order
 
 	req, err := http.NewRequest("GET", url, nil)
