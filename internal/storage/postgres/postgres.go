@@ -184,8 +184,7 @@ func (s *Storage) LoadOrder(ctx context.Context, login, orderID string) error {
 }
 
 func (s *Storage) GetOrders(ctx context.Context, login string) ([]Orders, error) {
-	//rows, err := s.db.QueryContext(ctx, "SELECT orderId, status, accrual, uploaded_at FROM orders WHERE user_login = $1 ORDER BY uploaded_at ASC", login)
-	rows, err := s.db.QueryContext(ctx, "SELECT orderId, status, uploaded_at FROM orders WHERE user_login = $1 ORDER BY uploaded_at ASC", login)
+	rows, err := s.db.QueryContext(ctx, "SELECT orderId, status, accrual, uploaded_at FROM orders WHERE user_login = $1 ORDER BY uploaded_at ASC", login)
 	if err != nil {
 		return []Orders{}, fmt.Errorf("failed to query orders: %w", err)
 	}
@@ -197,7 +196,7 @@ func (s *Storage) GetOrders(ctx context.Context, login string) ([]Orders, error)
 		var order Orders
 		var accrual sql.NullFloat64
 
-		if err := rows.Scan(&order.Number, &order.Status, &order.Accrual, &order.UploadedAt); err != nil {
+		if err := rows.Scan(&order.Number, &order.Status, &accrual, &order.UploadedAt); err != nil {
 			return []Orders{}, fmt.Errorf("failed to scan order: %w", err)
 		}
 		if accrual.Valid {
