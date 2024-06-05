@@ -26,6 +26,7 @@ type OrderGetter interface {
 }
 
 type DataUpdater interface {
+	GetUnfinishedOrders() ([]string, error)
 	UpdateBalancePlus(ctx context.Context, amount float64, orderID string) error
 	UpdateOrderStatus(ctx context.Context, orderID string, status string) error
 }
@@ -118,45 +119,54 @@ func GetOrdersHandle(orderGetter OrderGetter) http.HandlerFunc {
 //	}
 //}
 
-func ActualiseOrderData(updater DataUpdater, orderID string) error {
-	url := config.AccrualSystemAddress + "/api/orders/" + orderID
-	var order Order
+func ActualiseOrderData(updater DataUpdater) error {
+	url := config.AccrualSystemAddress + "/api/orders/"
 
-	req, err := http.NewRequest("GET", url, nil)
+	orders, err := updater.GetUnfinishedOrders()
 	if err != nil {
-		return fmt.Errorf("error actualising order data: %w", err)
+		return fmt.Errorf("error getting unfinished orders: %w", err)
 	}
 
-	client := http.Client{}
-	res, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("error sending req: %w", err)
-	}
-	defer res.Body.Close()
+	for _, orderID := range orders {
 
-	if res.StatusCode == http.StatusTooManyRequests {
-		return storage.ErrTooManyRequests
-	}
-	if res.StatusCode != http.StatusNoContent {
-		return storage.ErrOrderNotFound
-	}
-	if res.StatusCode == http.StatusInternalServerError {
-		return fmt.Errorf("accrual server error: %w", err)
-	}
-
-	if res.StatusCode == http.StatusOK {
-		if err := json.NewDecoder(res.Body).Decode(&order); err != nil {
-			return fmt.Errorf("error decoding order: %w", err)
+		req, err := http.NewRequest("GET", url+orderID, nil)
+		if err != nil {
+			return fmt.Errorf("error actualising order data: %w", err)
 		}
 
-		body, _ := io.ReadAll(res.Body)
-		slog.Info(string(body))
-
-		if err := updater.UpdateBalancePlus(req.Context(), order.Accrual, orderID); err != nil {
-			return fmt.Errorf("error updating balance: %w", err)
+		client := http.Client{}
+		res, err := client.Do(req)
+		if err != nil {
+			return fmt.Errorf("error sending req: %w", err)
 		}
-		if err := updater.UpdateOrderStatus(req.Context(), order.Number, orderID); err != nil {
-			return fmt.Errorf("error updating order status: %w", err)
+		defer res.Body.Close()
+
+		if res.StatusCode == http.StatusTooManyRequests {
+			return storage.ErrTooManyRequests
+		}
+		if res.StatusCode != http.StatusNoContent {
+			return storage.ErrOrderNotFound
+		}
+		if res.StatusCode == http.StatusInternalServerError {
+			return fmt.Errorf("accrual server error: %w", err)
+		}
+
+		if res.StatusCode == http.StatusOK {
+			var order Order
+
+			if err := json.NewDecoder(res.Body).Decode(&order); err != nil {
+				return fmt.Errorf("error decoding order: %w", err)
+			}
+
+			body, _ := io.ReadAll(res.Body)
+			slog.Info(string(body))
+
+			if err := updater.UpdateBalancePlus(req.Context(), order.Accrual, orderID); err != nil {
+				return fmt.Errorf("error updating balance: %w", err)
+			}
+			if err := updater.UpdateOrderStatus(req.Context(), order.Number, orderID); err != nil {
+				return fmt.Errorf("error updating order status: %w", err)
+			}
 		}
 	}
 

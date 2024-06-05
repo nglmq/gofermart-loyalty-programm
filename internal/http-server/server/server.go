@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"github.com/go-chi/chi/v5"
 	"github.com/nglmq/gofermart-loyalty-programm/internal/config"
 	"github.com/nglmq/gofermart-loyalty-programm/internal/http-server/handlers"
@@ -10,6 +11,7 @@ import (
 	"github.com/nglmq/gofermart-loyalty-programm/internal/storage/postgres"
 	"log/slog"
 	"net/http"
+	"time"
 )
 
 func Start() (http.Handler, error) {
@@ -20,6 +22,25 @@ func Start() (http.Handler, error) {
 		slog.Error("failed to init db")
 		return nil, err
 	}
+
+	ticker := time.NewTicker(3 * time.Second)
+	quit := make(chan struct{})
+
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+
+				err := orders.ActualiseOrderData(storage)
+				if err != nil {
+					fmt.Println("Error actualising order data:", err)
+				}
+			case <-quit:
+				ticker.Stop()
+				return
+			}
+		}
+	}()
 
 	r := chi.NewRouter()
 

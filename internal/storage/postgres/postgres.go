@@ -293,6 +293,30 @@ func (s *Storage) UpdateOrderStatus(ctx context.Context, orderID string, status 
 	return nil
 }
 
+func (s *Storage) GetUnfinishedOrders() ([]string, error) {
+	rows, err := s.db.Query(`SELECT orderID FROM orders WHERE status IN ('NEW', 'REGISTERED', 'PROCESSING'`)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return []string{}, fmt.Errorf("failed to query orders: %w", err)
+	}
+	defer rows.Close()
+
+	var orders []string
+
+	for rows.Next() {
+		var orderID string
+
+		if err := rows.Scan(&orderID); err != nil {
+			return []string{}, fmt.Errorf("failed to scan order: %w", err)
+		}
+		orders = append(orders, orderID)
+	}
+	if err := rows.Err(); err != nil {
+		return []string{}, fmt.Errorf("failed to get orders: %w", err)
+	}
+
+	return orders, nil
+}
+
 func (s *Storage) RequestWithdraw(ctx context.Context, login string, amount float64, orderID string) error {
 	var balance float64
 
