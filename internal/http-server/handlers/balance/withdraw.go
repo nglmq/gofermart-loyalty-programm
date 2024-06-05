@@ -20,6 +20,7 @@ type WithdrawalRequest struct {
 
 type UserBalanceWithdraw interface {
 	RequestWithdraw(ctx context.Context, login string, amount float64, orderID string) error
+	LoadOrder(ctx context.Context, login, orderID string) error
 	GetWithdrawals(ctx context.Context, login string) ([]postgres.Withdrawals, error)
 }
 
@@ -56,6 +57,21 @@ func RequestWithdrawHandle(withdraw UserBalanceWithdraw) http.HandlerFunc {
 		if err != nil {
 			if errors.Is(err, storage.ErrNotEnoughBalance) {
 				http.Error(w, "Not enough balance", http.StatusPaymentRequired)
+				return
+			}
+
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		err = withdraw.LoadOrder(r.Context(), login, withdrawalReq.Order)
+		if err != nil {
+			if errors.Is(err, storage.ErrOrderAlreadyLoadedByUser) {
+				http.Error(w, "Order already loaded", http.StatusOK)
+				return
+			}
+			if errors.Is(err, storage.ErrOrderAlreadyLoadedByAnotherUser) {
+				http.Error(w, "Order already loaded by another user", http.StatusConflict)
 				return
 			}
 

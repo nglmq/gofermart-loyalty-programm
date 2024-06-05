@@ -4,20 +4,32 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/nglmq/gofermart-loyalty-programm/internal/auth"
+	"github.com/nglmq/gofermart-loyalty-programm/internal/config"
 	"github.com/nglmq/gofermart-loyalty-programm/internal/storage"
 	"github.com/nglmq/gofermart-loyalty-programm/internal/storage/postgres"
 	"log/slog"
 	"net/http"
-	"strings"
 )
 
-type OrderGetter interface {
-	GetOrder(ctx context.Context, orderID string) (postgres.Order, error)
-	GetOrders(ctx context.Context, login string) ([]postgres.Orders, error)
+type Order struct {
+	Number  string  `json:"number"`
+	Status  string  `json:"status"`
+	Accrual float64 `json:"accrual,omitempty"`
 }
 
-func GetOrdersHandle(orderGetter OrderGetter) http.HandlerFunc {
+type OrderGetter interface {
+	// GetOrders GetOrder(ctx context.Context, orderID string) (postgres.Order, error)
+	GetOrders(ctx context.Context, login string) ([]postgres.Order, error)
+}
+
+type DataUpdater interface {
+	UpdateBalancePlus(ctx context.Context, amount float64, orderID string) error
+	UpdateOrderStatus(ctx context.Context, orderID string, status string) error
+}
+
+func GetOrdersHandle(updater DataUpdater, orderGetter OrderGetter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 
@@ -33,6 +45,24 @@ func GetOrdersHandle(orderGetter OrderGetter) http.HandlerFunc {
 		slog.Info(login + "LOGIN FOR GETTING ORDERS")
 
 		orders, err := orderGetter.GetOrders(r.Context(), login)
+		if err != nil {
+			http.Error(w, "Error getting orders: ", http.StatusInternalServerError)
+			return
+		}
+
+		for _, order := range orders {
+			err := ActualiseOrderData(updater, order.Number)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+
+		orders, err = orderGetter.GetOrders(r.Context(), login)
+		if err != nil {
+			http.Error(w, "Error getting orders: ", http.StatusInternalServerError)
+			return
+		}
 
 		slog.Info("len of orders slice:", len(orders))
 
@@ -64,40 +94,82 @@ func GetOrdersHandle(orderGetter OrderGetter) http.HandlerFunc {
 	}
 }
 
-func GetOrderHandle(orderGetter OrderGetter) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		orderID := strings.TrimPrefix(r.URL.Path, "/api/user/orders/")
-		slog.Info(orderID)
-		if orderID == "" {
-			http.Error(w, "Invalid request", http.StatusBadRequest)
-			return
-		}
+//func GetOrderHandle(dataUpdater DataUpdater) http.HandlerFunc {
+//	url := "http://" + config.AccrualSystemAddress + "/api/user/orders/"
+//
+//	return func(w http.ResponseWriter, r *http.Request) {
+//		var b []byte
+//		var order Order
+//
+//		resp, err := http.NewRequest("GET", url, bytes.NewBuffer(b))
+//		if err != nil {
+//			http.Error(w, "Invalid request", http.StatusBadRequest)
+//			return
+//		}
+//
+//		err := json.NewDecoder(r.Body).Decode(&order)
+//		fmt.Println(order)
+//		if err != nil {
+//			slog.Info("error decoding order:", err)
+//			http.Error(w, "Invalid request", http.StatusBadRequest)
+//			return
+//		}
+//
+//		if err := dataUpdater.UpdateBalancePlus(r.Context(), order.Accrual, order.Number); err != nil {
+//			slog.Info("error updating balance:", err)
+//
+//			http.Error(w, err.Error(), http.StatusInternalServerError)
+//			return
+//		}
+//		if err := dataUpdater.UpdateOrderStatus(r.Context(), orderID, order.Status); err != nil {
+//			slog.Info("error updating order status:", err)
+//
+//			http.Error(w, err.Error(), http.StatusInternalServerError)
+//			return
+//		}
+//
+//	}
+//}
 
-		order, err := orderGetter.GetOrder(r.Context(), orderID)
+func ActualiseOrderData(updater DataUpdater, orderID string) error {
+	url := "http://" + config.AccrualSystemAddress + "/api/user/orders/" + orderID
+	var order Order
 
-		if err != nil {
-			if errors.Is(err, storage.ErrOrderNotFound) {
-				http.Error(w, "Order not found", http.StatusNoContent)
-				return
-			}
-
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		response, err := json.Marshal(order)
-
-		slog.Info(string(response))
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write(response)
-
-		slog.Info("getting order done")
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return fmt.Errorf("error actualising order data: %w", err)
 	}
+
+	client := http.Client{}
+	res, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("error sending req: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode == http.StatusTooManyRequests {
+		return storage.ErrTooManyRequests
+	}
+	if res.StatusCode != http.StatusNoContent {
+		return storage.ErrOrderNotFound
+	}
+	if res.StatusCode == http.StatusInternalServerError {
+		return fmt.Errorf("accrual server error: %w", err)
+	}
+
+	if res.StatusCode == http.StatusOK {
+		if err := json.NewDecoder(res.Body).Decode(&order); err != nil {
+			return fmt.Errorf("error decoding order: %w", err)
+		}
+		fmt.Println(order)
+
+		if err := updater.UpdateBalancePlus(req.Context(), order.Accrual, orderID); err != nil {
+			return fmt.Errorf("error updating balance: %w", err)
+		}
+		if err := updater.UpdateOrderStatus(req.Context(), order.Number, orderID); err != nil {
+			return fmt.Errorf("error updating order status: %w", err)
+		}
+	}
+
+	return nil
 }

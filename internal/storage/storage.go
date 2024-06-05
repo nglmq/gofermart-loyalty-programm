@@ -12,4 +12,5 @@ var (
 	ErrOrderNotFound                   = errors.New("order not found")
 	ErrNotEnoughBalance                = errors.New("not enough balance")
 	ErrNoWithdrawalsFound              = errors.New("no withdrawals found")
+	ErrTooManyRequests                 = errors.New("too many requests")
 )

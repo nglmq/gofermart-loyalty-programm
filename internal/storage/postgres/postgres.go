@@ -17,17 +17,11 @@ type Storage struct {
 	db *sql.DB
 }
 
-type Orders struct {
+type Order struct {
 	Number     string    `json:"number" db:"orderId"`
 	Status     string    `json:"status" db:"status"`
 	Accrual    float64   `json:"accrual,omitempty" db:"accrual"`
 	UploadedAt time.Time `json:"uploaded_at" db:"uploaded_at"`
-}
-
-type Order struct {
-	Number  string  `json:"number" db:"orderId"`
-	Status  string  `json:"status" db:"status"`
-	Accrual float64 `json:"accrual,omitempty" db:"accrual"`
 }
 
 type Balance struct {
@@ -183,21 +177,21 @@ func (s *Storage) LoadOrder(ctx context.Context, login, orderID string) error {
 	return nil
 }
 
-func (s *Storage) GetOrders(ctx context.Context, login string) ([]Orders, error) {
+func (s *Storage) GetOrders(ctx context.Context, login string) ([]Order, error) {
 	rows, err := s.db.QueryContext(ctx, "SELECT orderId, status, accrual, uploaded_at FROM orders WHERE user_login = $1 ORDER BY uploaded_at ASC", login)
 	if err != nil {
-		return []Orders{}, fmt.Errorf("failed to query orders: %w", err)
+		return []Order{}, fmt.Errorf("failed to query orders: %w", err)
 	}
 	defer rows.Close()
 
-	var orders []Orders
+	var orders []Order
 
 	for rows.Next() {
-		var order Orders
+		var order Order
 		var accrual sql.NullFloat64
 
 		if err := rows.Scan(&order.Number, &order.Status, &accrual, &order.UploadedAt); err != nil {
-			return []Orders{}, fmt.Errorf("failed to scan order: %w", err)
+			return []Order{}, fmt.Errorf("failed to scan order: %w", err)
 		}
 		if accrual.Valid {
 			order.Accrual = accrual.Float64
@@ -207,34 +201,34 @@ func (s *Storage) GetOrders(ctx context.Context, login string) ([]Orders, error)
 	}
 
 	if err := rows.Err(); err != nil {
-		return []Orders{}, fmt.Errorf("error occurred during row iteration: %w", err)
+		return []Order{}, fmt.Errorf("error occurred during row iteration: %w", err)
 	}
 
 	if len(orders) == 0 {
-		return []Orders{}, storage.ErrNoOrders
+		return []Order{}, storage.ErrNoOrders
 	}
 
 	return orders, nil
 }
 
-func (s *Storage) GetOrder(ctx context.Context, orderID string) (Order, error) {
-	var order Order
-	var accrual sql.NullFloat64
-
-	err := s.db.QueryRowContext(ctx, "SELECT orderID, status, accrual FROM orders WHERE orderID = $1", orderID).Scan(&order.Number, &order.Status, &accrual)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return Order{}, storage.ErrOrderNotFound
-		}
-		return Order{}, fmt.Errorf("failed to query order: %w", err)
-	}
-
-	if accrual.Valid {
-		order.Accrual = accrual.Float64
-	}
-
-	return order, nil
-}
+//func (s *Storage) GetOrder(ctx context.Context, orderID string) (Order, error) {
+//	var order Order
+//	var accrual sql.NullFloat64
+//
+//	err := s.db.QueryRowContext(ctx, "SELECT orderID, status, accrual FROM orders WHERE orderID = $1", orderID).Scan(&order.Number, &order.Status, &accrual)
+//	if err != nil {
+//		if errors.Is(err, sql.ErrNoRows) {
+//			return Order{}, storage.ErrOrderNotFound
+//		}
+//		return Order{}, fmt.Errorf("failed to query order: %w", err)
+//	}
+//
+//	if accrual.Valid {
+//		order.Accrual = accrual.Float64
+//	}
+//
+//	return order, nil
+//}
 
 func (s *Storage) GetBalance(ctx context.Context, login string) (Balance, error) {
 	var balance Balance
@@ -247,7 +241,7 @@ func (s *Storage) GetBalance(ctx context.Context, login string) (Balance, error)
 	return balance, nil
 }
 
-func (s *Storage) UpdateBalance(ctx context.Context, login string, amount float64) error {
+func (s *Storage) UpdateBalanceMinus(ctx context.Context, login string, amount float64) error {
 	stmt, err := s.db.PrepareContext(ctx, `UPDATE balances SET current_balance = current_balance - $1, withdrawn  =  withdrawn  +  $1 WHERE user_login  =  $2`)
 	if err != nil {
 		return fmt.Errorf("failed to prepare update statement: %w", err)
@@ -257,6 +251,43 @@ func (s *Storage) UpdateBalance(ctx context.Context, login string, amount float6
 	_, err = stmt.ExecContext(ctx, amount, login)
 	if err != nil {
 		return fmt.Errorf("failed to update balance: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Storage) UpdateBalancePlus(ctx context.Context, amount float64, orderID string) error {
+	var login string
+
+	err := s.db.QueryRowContext(ctx, "SELECT user_login FROM orders WHERE orderID  =  $1", orderID).Scan(&login)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("failed to query order: %w", err)
+	}
+
+	stmt, err := s.db.PrepareContext(ctx, `UPDATE balances SET current_balance = current_balance + $1 WHERE user_login = $2`)
+	if err != nil {
+		return fmt.Errorf("failed to prepare update statement: %w", err)
+	}
+	defer stmt.Close()
+
+	_, err = stmt.ExecContext(ctx, amount, login)
+	if err != nil {
+		return fmt.Errorf("failed to update balance: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Storage) UpdateOrderStatus(ctx context.Context, orderID string, status string) error {
+	stmt, err := s.db.PrepareContext(ctx, `UPDATE orders SET status = $1 WHERE orderID = $2`)
+	if err != nil {
+		return fmt.Errorf("failed to prepare update statement: %w", err)
+	}
+	defer stmt.Close()
+
+	_, err = stmt.ExecContext(ctx, status, orderID)
+	if err != nil {
+		return fmt.Errorf("failed to update status: %w", err)
 	}
 
 	return nil
@@ -284,7 +315,7 @@ func (s *Storage) RequestWithdraw(ctx context.Context, login string, amount floa
 		return fmt.Errorf("failed to insert withdrawal: %w", err)
 	}
 
-	err = s.UpdateBalance(ctx, login, amount)
+	err = s.UpdateBalanceMinus(ctx, login, amount)
 	if err != nil {
 		return fmt.Errorf("failed to update balance: %w", err)
 	}
@@ -293,9 +324,7 @@ func (s *Storage) RequestWithdraw(ctx context.Context, login string, amount floa
 }
 
 func (s *Storage) GetWithdrawals(ctx context.Context, login string) ([]Withdrawals, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT orderId, amount, processed_at
-												FROM withdrawals WHERE user_login = $1 
-												ORDER BY processed_at ASC`, login)
+	rows, err := s.db.QueryContext(ctx, `SELECT orderId, amount, processed_at FROM withdrawals WHERE user_login = $1 ORDER BY processed_at ASC`, login)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return []Withdrawals{}, fmt.Errorf("failed to query withdrawals: %w", err)
 	}

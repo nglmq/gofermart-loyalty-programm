@@ -60,8 +60,8 @@ func RequestLogger(next http.Handler) http.Handler {
 				r.Method, r.RequestURI, responseData.status, duration, responseData.size)
 
 		} else {
-			sugar.Infof("method: %s, url: %s, status: %d, size: %d",
-				r.Method, r.RequestURI, responseData.status, responseData.size)
+			sugar.Infof("method: %s, url: %s, status: %d, size: %d, duration: %s",
+				r.Method, r.RequestURI, responseData.status, responseData.size, duration)
 		}
 	}
 	return http.HandlerFunc(logFn)
