@@ -29,7 +29,7 @@ func Start() (http.Handler, error) {
 		r.Post("/login", handlers.LoginHandle(storage))
 		r.Post("/orders", orders.LoadOrderHandle(storage))
 		r.Post("/balance/withdraw", balance.RequestWithdrawHandle(storage))
-		r.Get("/orders", orders.GetOrdersHandle(storage, storage))
+		r.Get("/orders", orders.GetOrdersHandle(storage))
 		r.Get("/balance", balance.CheckBalanceHandle(storage))
 		r.Get("/withdrawals", balance.GetWithdrawalsHandle(storage))
 	})

@@ -30,7 +30,7 @@ type DataUpdater interface {
 	UpdateOrderStatus(ctx context.Context, orderID string, status string) error
 }
 
-func GetOrdersHandle(updater DataUpdater, orderGetter OrderGetter) http.HandlerFunc {
+func GetOrdersHandle(orderGetter OrderGetter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 
@@ -46,20 +46,6 @@ func GetOrdersHandle(updater DataUpdater, orderGetter OrderGetter) http.HandlerF
 		slog.Info(login + "LOGIN FOR GETTING ORDERS")
 
 		orders, err := orderGetter.GetOrders(r.Context(), login)
-		if err != nil {
-			http.Error(w, "Error getting orders: ", http.StatusInternalServerError)
-			return
-		}
-
-		for _, order := range orders {
-			err := ActualiseOrderData(updater, order.Number)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-		}
-
-		orders, err = orderGetter.GetOrders(r.Context(), login)
 		if err != nil {
 			http.Error(w, "Error getting orders: ", http.StatusInternalServerError)
 			return
