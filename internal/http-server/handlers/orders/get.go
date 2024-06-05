@@ -9,6 +9,7 @@ import (
 	"github.com/nglmq/gofermart-loyalty-programm/internal/config"
 	"github.com/nglmq/gofermart-loyalty-programm/internal/storage"
 	"github.com/nglmq/gofermart-loyalty-programm/internal/storage/postgres"
+	"io"
 	"log/slog"
 	"net/http"
 )
@@ -161,7 +162,9 @@ func ActualiseOrderData(updater DataUpdater, orderID string) error {
 		if err := json.NewDecoder(res.Body).Decode(&order); err != nil {
 			return fmt.Errorf("error decoding order: %w", err)
 		}
-		fmt.Println(order)
+
+		body, _ := io.ReadAll(res.Body)
+		slog.Info(string(body))
 
 		if err := updater.UpdateBalancePlus(req.Context(), order.Accrual, orderID); err != nil {
 			return fmt.Errorf("error updating balance: %w", err)
