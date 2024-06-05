@@ -128,47 +128,57 @@ func ActualiseOrderData(updater DataUpdater) error {
 	}
 
 	for _, orderID := range orders {
-
-		req, err := http.NewRequest("GET", url+orderID, nil)
+		order, err := updateOrderData(url, orderID)
 		if err != nil {
-			return fmt.Errorf("error actualising order data: %w", err)
+			slog.Info("Error processing order: ", orderID, err)
+			continue
 		}
 
-		client := http.Client{}
-		res, err := client.Do(req)
-		if err != nil {
-			return fmt.Errorf("error sending req: %w", err)
+		if err := updater.UpdateBalancePlus(context.Background(), order.Accrual, orderID); err != nil {
+			slog.Info("Error updating balance for order: ", orderID, err)
+			continue
 		}
-		defer res.Body.Close()
-
-		if res.StatusCode == http.StatusTooManyRequests {
-			return storage.ErrTooManyRequests
-		}
-		if res.StatusCode != http.StatusNoContent {
-			return storage.ErrOrderNotFound
-		}
-		if res.StatusCode == http.StatusInternalServerError {
-			return fmt.Errorf("accrual server error: %w", err)
-		}
-
-		if res.StatusCode == http.StatusOK {
-			var order Order
-
-			if err := json.NewDecoder(res.Body).Decode(&order); err != nil {
-				return fmt.Errorf("error decoding order: %w", err)
-			}
-
-			body, _ := io.ReadAll(res.Body)
-			slog.Info(string(body))
-
-			if err := updater.UpdateBalancePlus(req.Context(), order.Accrual, orderID); err != nil {
-				return fmt.Errorf("error updating balance: %w", err)
-			}
-			if err := updater.UpdateOrderStatus(req.Context(), order.Number, orderID); err != nil {
-				return fmt.Errorf("error updating order status: %w", err)
-			}
+		if err := updater.UpdateOrderStatus(context.Background(), order.Number, orderID); err != nil {
+			slog.Info("Error updating order status for order: ", orderID, err)
+			continue
 		}
 	}
 
 	return nil
+}
+
+func updateOrderData(baseUrl, orderID string) (Order, error) {
+	var order Order
+	url := baseUrl + orderID
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return order, fmt.Errorf("error creating request for order data: %w", err)
+	}
+
+	client := http.Client{}
+	res, err := client.Do(req)
+	if err != nil {
+		return Order{}, fmt.Errorf("error sending request for order data: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode == http.StatusTooManyRequests {
+		return Order{}, storage.ErrTooManyRequests
+	}
+	if res.StatusCode != http.StatusNoContent {
+		return Order{}, storage.ErrOrderNotFound
+	}
+	if res.StatusCode == http.StatusInternalServerError {
+		return Order{}, fmt.Errorf("accrual server error: %w", err)
+	}
+
+	if res.StatusCode == http.StatusOK {
+		if err := json.NewDecoder(res.Body).Decode(&order); err != nil {
+			return Order{}, fmt.Errorf("error decoding order: %w", err)
+		}
+		body, _ := io.ReadAll(res.Body)
+		slog.Info(string(body))
+	}
+
+	return order, nil
 }

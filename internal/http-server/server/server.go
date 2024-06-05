@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"github.com/go-chi/chi/v5"
 	"github.com/nglmq/gofermart-loyalty-programm/internal/config"
 	"github.com/nglmq/gofermart-loyalty-programm/internal/http-server/handlers"
@@ -23,17 +22,16 @@ func Start() (http.Handler, error) {
 		return nil, err
 	}
 
-	ticker := time.NewTicker(3 * time.Second)
+	ticker := time.NewTicker(2 * time.Second)
 	quit := make(chan struct{})
-
 	go func() {
 		for {
 			select {
 			case <-ticker.C:
-
 				err := orders.ActualiseOrderData(storage)
 				if err != nil {
-					fmt.Println("Error actualising order data:", err)
+					slog.Error("failed to actualise order data main goroutine", err)
+					return
 				}
 			case <-quit:
 				ticker.Stop()
