@@ -17,11 +17,17 @@ type Storage struct {
 	db *sql.DB
 }
 
-type Order struct {
+type Orders struct {
 	Number     string    `json:"number" db:"orderId"`
 	Status     string    `json:"status" db:"status"`
 	Accrual    float64   `json:"accrual,omitempty" db:"accrual"`
 	UploadedAt time.Time `json:"uploaded_at" db:"uploaded_at"`
+}
+
+type Order struct {
+	Number  string  `json:"number" db:"orderId"`
+	Status  string  `json:"status" db:"status"`
+	Accrual float64 `json:"accrual,omitempty" db:"accrual"`
 }
 
 type Balance struct {
@@ -177,42 +183,58 @@ func (s *Storage) LoadOrder(ctx context.Context, login, orderID string) error {
 	return nil
 }
 
-func (s *Storage) GetOrders(ctx context.Context, login string) ([]Order, error) {
+func (s *Storage) GetOrders(ctx context.Context, login string) ([]Orders, error) {
 	//rows, err := s.db.QueryContext(ctx, "SELECT orderId, status, accrual, uploaded_at FROM orders WHERE user_login = $1 ORDER BY uploaded_at ASC", login)
 	rows, err := s.db.QueryContext(ctx, "SELECT orderId, status, uploaded_at FROM orders WHERE user_login = $1 ORDER BY uploaded_at ASC", login)
 	if err != nil {
-		return []Order{}, fmt.Errorf("failed to query orders: %w", err)
+		return []Orders{}, fmt.Errorf("failed to query orders: %w", err)
 	}
 	defer rows.Close()
 
-	var orders []Order
+	var orders []Orders
 
 	for rows.Next() {
-		var order Order
-		//var accrual sql.NullFloat64
+		var order Orders
+		var accrual sql.NullFloat64
 
-		//if err := rows.Scan(&order.Number, &order.Status, &order.Accrual, &order.UploadedAt); err != nil {
-		//	return []Order{}, fmt.Errorf("failed to scan order: %w", err)
-		//}
-		//if accrual.Valid {
-		//	order.Accrual = accrual.Float64
-		//}
-		if err := rows.Scan(&order.Number, &order.Status, &order.UploadedAt); err != nil {
-			return []Order{}, fmt.Errorf("failed to scan order: %w", err)
+		if err := rows.Scan(&order.Number, &order.Status, &order.Accrual, &order.UploadedAt); err != nil {
+			return []Orders{}, fmt.Errorf("failed to scan order: %w", err)
+		}
+		if accrual.Valid {
+			order.Accrual = accrual.Float64
 		}
 
 		orders = append(orders, order)
 	}
 
 	if err := rows.Err(); err != nil {
-		return []Order{}, fmt.Errorf("error occurred during row iteration: %w", err)
+		return []Orders{}, fmt.Errorf("error occurred during row iteration: %w", err)
 	}
 
 	if len(orders) == 0 {
-		return []Order{}, storage.ErrNoOrders
+		return []Orders{}, storage.ErrNoOrders
 	}
 
 	return orders, nil
+}
+
+func (s *Storage) GetOrder(ctx context.Context, orderID string) (Order, error) {
+	var order Order
+	var accrual sql.NullFloat64
+
+	err := s.db.QueryRowContext(ctx, "SELECT orderID, status, accrual FROM orders WHERE orderID = $1", orderID).Scan(&order.Number, &order.Status, &accrual)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Order{}, storage.ErrOrderNotFound
+		}
+		return Order{}, fmt.Errorf("failed to query order: %w", err)
+	}
+
+	if accrual.Valid {
+		order.Accrual = accrual.Float64
+	}
+
+	return order, nil
 }
 
 func (s *Storage) GetBalance(ctx context.Context, login string) (Balance, error) {

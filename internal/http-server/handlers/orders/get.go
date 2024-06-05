@@ -9,10 +9,12 @@ import (
 	"github.com/nglmq/gofermart-loyalty-programm/internal/storage/postgres"
 	"log/slog"
 	"net/http"
+	"strings"
 )
 
 type OrderGetter interface {
-	GetOrders(ctx context.Context, login string) ([]postgres.Order, error)
+	GetOrder(ctx context.Context, orderID string) (postgres.Order, error)
+	GetOrders(ctx context.Context, login string) ([]postgres.Orders, error)
 }
 
 func GetOrdersHandle(orderGetter OrderGetter) http.HandlerFunc {
@@ -59,5 +61,43 @@ func GetOrdersHandle(orderGetter OrderGetter) http.HandlerFunc {
 
 		slog.Info("getting orders done")
 
+	}
+}
+
+func GetOrderHandle(orderGetter OrderGetter) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		orderID := strings.TrimPrefix(r.URL.Path, "/api/user/orders/")
+		slog.Info(orderID)
+		if orderID == "" {
+			http.Error(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+
+		order, err := orderGetter.GetOrder(r.Context(), orderID)
+
+		if err != nil {
+			if errors.Is(err, storage.ErrOrderNotFound) {
+				http.Error(w, "Order not found", http.StatusNoContent)
+				return
+			}
+
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		response, err := json.Marshal(order)
+
+		slog.Info(string(response))
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(response)
+
+		slog.Info("getting order done")
 	}
 }
