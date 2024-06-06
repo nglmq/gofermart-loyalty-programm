@@ -166,20 +166,20 @@ func updateOrderData(baseUrl, orderID string) (Order, error) {
 	if res.StatusCode == http.StatusTooManyRequests {
 		return Order{}, storage.ErrTooManyRequests
 	}
-	if res.StatusCode != http.StatusNoContent {
-		return Order{}, storage.ErrOrderNotFound
-	}
-	if res.StatusCode == http.StatusInternalServerError {
-		return Order{}, fmt.Errorf("accrual server error: %w", err)
-	}
+	//if res.StatusCode != http.StatusNoContent {
+	//	return Order{}, storage.ErrOrderNotFound
+	//}
+	//if res.StatusCode == http.StatusInternalServerError {
+	//	return Order{}, fmt.Errorf("accrual server error: %w", err)
+	//}
 
-	if res.StatusCode == http.StatusOK {
-		if err := json.NewDecoder(res.Body).Decode(&order); err != nil {
-			return Order{}, fmt.Errorf("error decoding order: %w", err)
-		}
-		body, _ := io.ReadAll(res.Body)
-		slog.Info(string(body))
+	//if res.StatusCode == http.StatusOK {
+	if err := json.NewDecoder(res.Body).Decode(&order); err != nil {
+		return Order{}, fmt.Errorf("error decoding order: %w", err)
 	}
+	body, _ := io.ReadAll(res.Body)
+	slog.Info(string(body))
+	//}
 
 	return order, nil
 }

@@ -85,8 +85,7 @@ func New() (*Storage, error) {
     	orderId TEXT NOT NULL,
     	amount FLOAT NOT NULL,
     	processed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	    FOREIGN KEY (user_login) REFERENCES users (login),
-	    FOREIGN KEY (orderId) REFERENCES orders (orderId));
+	    FOREIGN KEY (user_login) REFERENCES users (login))
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create withdrawals table: %w", err)
@@ -338,6 +337,11 @@ func (s *Storage) RequestWithdraw(ctx context.Context, login string, amount floa
 	if err != nil {
 		return fmt.Errorf("failed to insert withdrawal: %w", err)
 	}
+
+	//err = s.LoadOrder(ctx, login, orderID)
+	//if err != nil {
+	//	return fmt.Errorf("failed to load order: %w", err)
+	//}
 
 	err = s.UpdateBalanceMinus(ctx, login, amount)
 	if err != nil {
