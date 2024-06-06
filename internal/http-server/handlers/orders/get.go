@@ -150,6 +150,7 @@ func ActualiseOrderData(updater DataUpdater) error {
 func updateOrderData(baseUrl, orderID string) (Order, error) {
 	var order Order
 	url := baseUrl + orderID
+	slog.Info("updateOrderData: ", url)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return order, fmt.Errorf("error creating request for order data: %w", err)

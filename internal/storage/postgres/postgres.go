@@ -294,7 +294,7 @@ func (s *Storage) UpdateOrderStatus(ctx context.Context, orderID string, status 
 }
 
 func (s *Storage) GetUnfinishedOrders() ([]string, error) {
-	rows, err := s.db.Query(`SELECT orderID FROM orders WHERE status IN ('NEW', 'REGISTERED', 'PROCESSING'`)
+	rows, err := s.db.Query(`SELECT orderID FROM orders WHERE status IN ('NEW', 'REGISTERED', 'PROCESSING')`)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return []string{}, fmt.Errorf("failed to query orders: %w", err)
 	}
