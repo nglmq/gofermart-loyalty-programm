@@ -186,12 +186,13 @@ func updateOrderData(baseUrl, orderID string) (Order, error) {
 	}
 
 	if res.StatusCode == http.StatusOK {
-		if err := json.NewDecoder(res.Body).Decode(&order); err != nil {
+		body, _ := io.ReadAll(res.Body)
+		slog.Info("Order data received: ", string(body))
+
+		if err := json.Unmarshal(body, &order); err != nil {
 			slog.Error("Error decoding order data: ", err)
 			return Order{}, fmt.Errorf("error decoding order: %w", err)
 		}
-		body, _ := io.ReadAll(res.Body)
-		slog.Info("Order data received: ", string(body))
 	}
 
 	return order, nil
