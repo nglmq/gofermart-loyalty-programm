@@ -247,11 +247,17 @@ func (s *Storage) UpdateBalanceMinus(ctx context.Context, login string, amount f
 
 func (s *Storage) UpdateBalancePlus(ctx context.Context, amount float64, orderID string) error {
 	var login string
+	slog.Info("Attempting to retrieve user login for orderID: ", orderID)
 
 	err := s.db.QueryRowContext(ctx, "SELECT user_login FROM orders WHERE orderId = $1", orderID).Scan(&login)
 	slog.Info("login for balance: ", login)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("failed to query order: %w", err)
+	}
+
+	if login == "" {
+		slog.Info("No login found for orderID: ", orderID)
+		return fmt.Errorf("no login found for orderID %s", orderID)
 	}
 
 	stmt, err := s.db.PrepareContext(ctx, `UPDATE users SET current_balance = current_balance + $1 WHERE login = $2`)
@@ -268,7 +274,7 @@ func (s *Storage) UpdateBalancePlus(ctx context.Context, amount float64, orderID
 	return nil
 }
 
-func (s *Storage) UpdateOrderStatus(ctx context.Context, orderID string, status string) error {
+func (s *Storage) UpdateOrderStatus(ctx context.Context, orderID, status string) error {
 	stmt, err := s.db.PrepareContext(ctx, `UPDATE orders SET status = $1 WHERE orderId = $2`)
 	if err != nil {
 		return fmt.Errorf("failed to prepare update statement: %w", err)
@@ -276,6 +282,7 @@ func (s *Storage) UpdateOrderStatus(ctx context.Context, orderID string, status 
 	defer stmt.Close()
 
 	result, err := stmt.ExecContext(ctx, status, orderID)
+	slog.Info("status: ", status, "order: ", orderID)
 	rowsAffected, _ := result.RowsAffected()
 	slog.Info("Rows affected by update status: ", rowsAffected)
 	if err != nil {
