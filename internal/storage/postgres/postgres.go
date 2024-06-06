@@ -46,6 +46,8 @@ func New() (*Storage, error) {
     	id SERIAL PRIMARY KEY, 
     	login TEXT NOT NULL UNIQUE, 
     	password TEXT NOT NULL,
+    	current_balance FLOAT NOT NULL DEFAULT 0 CHECK(current_balance >= 0),
+    	withdrawn FLOAT NOT NULL DEFAULT 0 CHECK(withdrawn  >=  0),
 		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP);
 	`)
 	if err != nil {
@@ -64,18 +66,6 @@ func New() (*Storage, error) {
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create orders table: %w", err)
-	}
-
-	_, err = db.Exec(`
-	CREATE TABLE IF NOT EXISTS balances(
-	    id SERIAL PRIMARY KEY, 
-    	user_login TEXT NOT NULL,
-    	current_balance FLOAT NOT NULL DEFAULT 0 CHECK(current_balance >= 0),
-    	withdrawn FLOAT NOT NULL,
-	    FOREIGN KEY (user_login) REFERENCES users (login));
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create balances table: %w", err)
 	}
 
 	_, err = db.Exec(`
@@ -232,7 +222,7 @@ func (s *Storage) GetOrders(ctx context.Context, login string) ([]Order, error) 
 func (s *Storage) GetBalance(ctx context.Context, login string) (Balance, error) {
 	var balance Balance
 
-	err := s.db.QueryRowContext(ctx, "SELECT current_balance, withdrawn FROM balances WHERE user_login = $1", login).Scan(&balance.Current, &balance.Withdrawn)
+	err := s.db.QueryRowContext(ctx, "SELECT current_balance, withdrawn FROM users WHERE user_login = $1", login).Scan(&balance.Current, &balance.Withdrawn)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return Balance{}, fmt.Errorf("failed to query balance: %w", err)
 	}
@@ -241,7 +231,7 @@ func (s *Storage) GetBalance(ctx context.Context, login string) (Balance, error)
 }
 
 func (s *Storage) UpdateBalanceMinus(ctx context.Context, login string, amount float64) error {
-	stmt, err := s.db.PrepareContext(ctx, `UPDATE balances SET current_balance = current_balance - $1, withdrawn  =  withdrawn  +  $1 WHERE user_login  =  $2`)
+	stmt, err := s.db.PrepareContext(ctx, `UPDATE users SET current_balance = current_balance - $1, withdrawn  =  withdrawn  +  $1 WHERE user_login  =  $2`)
 	if err != nil {
 		return fmt.Errorf("failed to prepare update statement: %w", err)
 	}
@@ -258,13 +248,13 @@ func (s *Storage) UpdateBalanceMinus(ctx context.Context, login string, amount f
 func (s *Storage) UpdateBalancePlus(ctx context.Context, amount float64, orderID string) error {
 	var login string
 
-	err := s.db.QueryRowContext(ctx, "SELECT user_login FROM orders WHERE orderID  =  $1", orderID).Scan(&login)
+	err := s.db.QueryRowContext(ctx, "SELECT user_login FROM orders WHERE orderId  =  $1", orderID).Scan(&login)
 	slog.Info("login for balance: ", login)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("failed to query order: %w", err)
 	}
 
-	stmt, err := s.db.PrepareContext(ctx, `UPDATE balances SET current_balance = current_balance + $1 WHERE user_login = $2`)
+	stmt, err := s.db.PrepareContext(ctx, `UPDATE users SET current_balance = current_balance + $1 WHERE user_login = $2`)
 	if err != nil {
 		return fmt.Errorf("failed to prepare update statement: %w", err)
 	}
