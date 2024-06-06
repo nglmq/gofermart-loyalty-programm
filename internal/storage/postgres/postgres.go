@@ -222,7 +222,7 @@ func (s *Storage) GetOrders(ctx context.Context, login string) ([]Order, error) 
 func (s *Storage) GetBalance(ctx context.Context, login string) (Balance, error) {
 	var balance Balance
 
-	err := s.db.QueryRowContext(ctx, "SELECT current_balance, withdrawn FROM users WHERE user_login = $1", login).Scan(&balance.Current, &balance.Withdrawn)
+	err := s.db.QueryRowContext(ctx, "SELECT current_balance, withdrawn FROM users WHERE login = $1", login).Scan(&balance.Current, &balance.Withdrawn)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return Balance{}, fmt.Errorf("failed to query balance: %w", err)
 	}
@@ -231,7 +231,7 @@ func (s *Storage) GetBalance(ctx context.Context, login string) (Balance, error)
 }
 
 func (s *Storage) UpdateBalanceMinus(ctx context.Context, login string, amount float64) error {
-	stmt, err := s.db.PrepareContext(ctx, `UPDATE users SET current_balance = current_balance - $1, withdrawn  =  withdrawn  +  $1 WHERE user_login  =  $2`)
+	stmt, err := s.db.PrepareContext(ctx, `UPDATE users SET current_balance = current_balance - $1, withdrawn  =  withdrawn  +  $1 WHERE login  =  $2`)
 	if err != nil {
 		return fmt.Errorf("failed to prepare update statement: %w", err)
 	}
@@ -248,13 +248,13 @@ func (s *Storage) UpdateBalanceMinus(ctx context.Context, login string, amount f
 func (s *Storage) UpdateBalancePlus(ctx context.Context, amount float64, orderID string) error {
 	var login string
 
-	err := s.db.QueryRowContext(ctx, "SELECT user_login FROM orders WHERE orderId  =  $1", orderID).Scan(&login)
+	err := s.db.QueryRowContext(ctx, "SELECT user_login FROM orders WHERE orderId = $1", orderID).Scan(&login)
 	slog.Info("login for balance: ", login)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("failed to query order: %w", err)
 	}
 
-	stmt, err := s.db.PrepareContext(ctx, `UPDATE users SET current_balance = current_balance + $1 WHERE user_login = $2`)
+	stmt, err := s.db.PrepareContext(ctx, `UPDATE users SET current_balance = current_balance + $1 WHERE login = $2`)
 	if err != nil {
 		return fmt.Errorf("failed to prepare update statement: %w", err)
 	}
@@ -269,7 +269,7 @@ func (s *Storage) UpdateBalancePlus(ctx context.Context, amount float64, orderID
 }
 
 func (s *Storage) UpdateOrderStatus(ctx context.Context, orderID string, status string) error {
-	stmt, err := s.db.PrepareContext(ctx, `UPDATE orders SET status = $1 WHERE orderID = $2`)
+	stmt, err := s.db.PrepareContext(ctx, `UPDATE orders SET status = $1 WHERE orderId = $2`)
 	if err != nil {
 		return fmt.Errorf("failed to prepare update statement: %w", err)
 	}
@@ -286,7 +286,7 @@ func (s *Storage) UpdateOrderStatus(ctx context.Context, orderID string, status 
 }
 
 func (s *Storage) GetUnfinishedOrders() ([]string, error) {
-	rows, err := s.db.Query(`SELECT orderID FROM orders WHERE status IN ('NEW', 'REGISTERED', 'PROCESSING')`)
+	rows, err := s.db.Query(`SELECT orderId FROM orders WHERE status IN ('NEW', 'REGISTERED', 'PROCESSING')`)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return []string{}, fmt.Errorf("failed to query orders: %w", err)
 	}
