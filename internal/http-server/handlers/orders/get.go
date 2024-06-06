@@ -121,13 +121,17 @@ func GetOrdersHandle(orderGetter OrderGetter) http.HandlerFunc {
 
 func ActualiseOrderData(updater DataUpdater) error {
 	url := config.AccrualSystemAddress + "/api/orders/"
+	slog.Info("Starting to actualise order data.")
 
 	orders, err := updater.GetUnfinishedOrders()
 	if err != nil {
+		slog.Error("Failed to get unfinished orders: ", err)
 		return fmt.Errorf("error getting unfinished orders: %w", err)
 	}
 
+	slog.Info("Processing orders: ", orders)
 	for _, orderID := range orders {
+		slog.Info("Updating order data for order ID: ", orderID)
 		order, err := updateOrderData(url, orderID)
 		if err != nil {
 			slog.Info("Error processing order: ", orderID, err)
@@ -138,48 +142,57 @@ func ActualiseOrderData(updater DataUpdater) error {
 			slog.Info("Error updating balance for order: ", orderID, err)
 			continue
 		}
+
 		if err := updater.UpdateOrderStatus(context.Background(), order.Number, orderID); err != nil {
 			slog.Info("Error updating order status for order: ", orderID, err)
 			continue
 		}
 	}
 
+	slog.Info("Finished processing all orders.")
 	return nil
 }
 
 func updateOrderData(baseUrl, orderID string) (Order, error) {
 	var order Order
 	url := baseUrl + orderID
-	slog.Info("updateOrderData: ", url)
+	slog.Info("Requesting order data from URL: ", url)
+
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
+		slog.Error("Error creating HTTP request: ", err)
 		return order, fmt.Errorf("error creating request for order data: %w", err)
 	}
 
 	client := http.Client{}
 	res, err := client.Do(req)
 	if err != nil {
+		slog.Error("HTTP request failed: ", err)
 		return Order{}, fmt.Errorf("error sending request for order data: %w", err)
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode == http.StatusTooManyRequests {
+	slog.Info("HTTP response status: ", res.StatusCode)
+	switch res.StatusCode {
+	case http.StatusTooManyRequests:
+		slog.Error("Received too many requests error.")
 		return Order{}, storage.ErrTooManyRequests
+	case http.StatusNoContent:
+		slog.Info("No content for order data.")
+		return Order{}, storage.ErrOrderNotFound
+	case http.StatusInternalServerError:
+		slog.Error("Internal server error encountered.")
+		return Order{}, fmt.Errorf("accrual server error: %w", err)
 	}
-	//if res.StatusCode != http.StatusNoContent {
-	//	return Order{}, storage.ErrOrderNotFound
-	//}
-	//if res.StatusCode == http.StatusInternalServerError {
-	//	return Order{}, fmt.Errorf("accrual server error: %w", err)
-	//}
 
-	//if res.StatusCode == http.StatusOK {
-	if err := json.NewDecoder(res.Body).Decode(&order); err != nil {
-		return Order{}, fmt.Errorf("error decoding order: %w", err)
+	if res.StatusCode == http.StatusOK {
+		if err := json.NewDecoder(res.Body).Decode(&order); err != nil {
+			slog.Error("Error decoding order data: ", err)
+			return Order{}, fmt.Errorf("error decoding order: %w", err)
+		}
+		body, _ := io.ReadAll(res.Body)
+		slog.Info("Order data received: ", string(body))
 	}
-	body, _ := io.ReadAll(res.Body)
-	slog.Info(string(body))
-	//}
 
 	return order, nil
 }

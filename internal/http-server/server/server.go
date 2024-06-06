@@ -23,7 +23,7 @@ func Start() (http.Handler, error) {
 		return nil, err
 	}
 
-	ticker := time.NewTicker(2 * time.Second)
+	ticker := time.NewTicker(1 * time.Second)
 	quit := make(chan struct{})
 	go func() {
 		for {
