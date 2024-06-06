@@ -319,7 +319,7 @@ func (s *Storage) GetUnfinishedOrders() ([]string, error) {
 func (s *Storage) RequestWithdraw(ctx context.Context, login string, amount float64, orderID string) error {
 	var balance float64
 
-	err := s.db.QueryRowContext(ctx, "SELECT current_balance FROM balances WHERE user_login  =  $1", login).Scan(&balance)
+	err := s.db.QueryRowContext(ctx, "SELECT current_balance FROM users WHERE login  =  $1", login).Scan(&balance)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("failed to query balance: %w", err)
 	}
