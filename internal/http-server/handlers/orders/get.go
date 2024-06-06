@@ -28,7 +28,7 @@ type OrderGetter interface {
 type DataUpdater interface {
 	GetUnfinishedOrders() ([]string, error)
 	UpdateBalancePlus(ctx context.Context, amount float64, orderID string) error
-	UpdateOrderStatus(ctx context.Context, orderID string, status string) error
+	UpdateOrderStatus(ctx context.Context, accrual float64, status, orderID string) error
 }
 
 func GetOrdersHandle(orderGetter OrderGetter) http.HandlerFunc {
@@ -144,7 +144,7 @@ func ActualiseOrderData(updater DataUpdater) error {
 		//	continue
 		//}
 
-		if err := updater.UpdateOrderStatus(context.Background(), order.Status, order.Number); err != nil {
+		if err := updater.UpdateOrderStatus(context.Background(), order.Accrual, order.Status, order.Number); err != nil {
 			slog.Info("Error updating order status for order: ", orderID, err)
 			return err
 		}
