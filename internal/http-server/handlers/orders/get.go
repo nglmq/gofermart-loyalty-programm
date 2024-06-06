@@ -44,17 +44,11 @@ func GetOrdersHandle(orderGetter OrderGetter) http.HandlerFunc {
 
 		orders, err := orderGetter.GetOrders(r.Context(), login)
 		if err != nil {
-			http.Error(w, "Error getting orders: ", http.StatusInternalServerError)
-			return
-		}
-
-		if err != nil {
 			if errors.Is(err, storage.ErrNoOrders) {
 				http.Error(w, "No orders found", http.StatusNoContent)
 				return
 			}
-
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Error getting orders", http.StatusInternalServerError)
 			return
 		}
 
