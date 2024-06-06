@@ -259,6 +259,7 @@ func (s *Storage) UpdateBalancePlus(ctx context.Context, amount float64, orderID
 	var login string
 
 	err := s.db.QueryRowContext(ctx, "SELECT user_login FROM orders WHERE orderID  =  $1", orderID).Scan(&login)
+	slog.Info("login for balance: ", login)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("failed to query order: %w", err)
 	}
@@ -284,7 +285,9 @@ func (s *Storage) UpdateOrderStatus(ctx context.Context, orderID string, status 
 	}
 	defer stmt.Close()
 
-	_, err = stmt.ExecContext(ctx, status, orderID)
+	result, err := stmt.ExecContext(ctx, status, orderID)
+	rowsAffected, _ := result.RowsAffected()
+	slog.Info("Rows affected by update status: ", rowsAffected)
 	if err != nil {
 		return fmt.Errorf("failed to update status: %w", err)
 	}
