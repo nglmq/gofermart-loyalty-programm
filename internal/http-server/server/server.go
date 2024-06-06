@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"github.com/go-chi/chi/v5"
 	"github.com/nglmq/gofermart-loyalty-programm/internal/config"
 	"github.com/nglmq/gofermart-loyalty-programm/internal/http-server/handlers"
@@ -29,7 +28,6 @@ func Start() (http.Handler, error) {
 		for {
 			select {
 			case <-ticker.C:
-				fmt.Println("doing something")
 				err := orders.ActualiseOrderData(storage)
 				if err != nil {
 					slog.Error("failed to actualise order data main goroutine", err)
@@ -54,10 +52,6 @@ func Start() (http.Handler, error) {
 		r.Get("/balance", balance.CheckBalanceHandle(storage))
 		r.Get("/withdrawals", balance.GetWithdrawalsHandle(storage))
 	})
-	//r.Group(func(r chi.Router) {
-	//	r.Use(middleware.LimitMiddleware)
-	//	r.Get("/api/user/orders/{number}", orders.GetOrderHandle(storage))
-	//})
 
 	return r, nil
 }

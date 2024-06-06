@@ -200,25 +200,6 @@ func (s *Storage) GetOrders(ctx context.Context, login string) ([]Order, error) 
 	return orders, nil
 }
 
-//func (s *Storage) GetOrder(ctx context.Context, orderID string) (Order, error) {
-//	var order Order
-//	var accrual sql.NullFloat64
-//
-//	err := s.db.QueryRowContext(ctx, "SELECT orderID, status, accrual FROM orders WHERE orderID = $1", orderID).Scan(&order.Number, &order.Status, &accrual)
-//	if err != nil {
-//		if errors.Is(err, sql.ErrNoRows) {
-//			return Order{}, storage.ErrOrderNotFound
-//		}
-//		return Order{}, fmt.Errorf("failed to query order: %w", err)
-//	}
-//
-//	if accrual.Valid {
-//		order.Accrual = accrual.Float64
-//	}
-//
-//	return order, nil
-//}
-
 func (s *Storage) GetBalance(ctx context.Context, login string) (Balance, error) {
 	var balance Balance
 
@@ -247,16 +228,13 @@ func (s *Storage) UpdateBalanceMinus(ctx context.Context, login string, amount f
 
 func (s *Storage) UpdateBalancePlus(ctx context.Context, amount float64, orderID string) error {
 	var login string
-	slog.Info("Attempting to retrieve user login for orderID: ", orderID)
 
 	err := s.db.QueryRowContext(ctx, "SELECT user_login FROM orders WHERE orderId = $1", orderID).Scan(&login)
-	slog.Info("login for balance: ", login)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("failed to query order: %w", err)
 	}
 
 	if login == "" {
-		slog.Info("No login found for orderID: ", orderID)
 		return fmt.Errorf("no login found for orderID %s", orderID)
 	}
 
@@ -281,10 +259,7 @@ func (s *Storage) UpdateOrderStatus(ctx context.Context, accrual float64, status
 	}
 	defer stmt.Close()
 
-	result, err := stmt.ExecContext(ctx, accrual, status, orderID)
-	slog.Info("status: ", status, "order: ", orderID)
-	rowsAffected, _ := result.RowsAffected()
-	slog.Info("Rows affected by update status: ", rowsAffected)
+	_, err = stmt.ExecContext(ctx, accrual, status, orderID)
 	if err != nil {
 		return fmt.Errorf("failed to update status: %w", err)
 	}
@@ -338,11 +313,6 @@ func (s *Storage) RequestWithdraw(ctx context.Context, login string, amount floa
 		return fmt.Errorf("failed to insert withdrawal: %w", err)
 	}
 
-	//err = s.LoadOrder(ctx, login, orderID)
-	//if err != nil {
-	//	return fmt.Errorf("failed to load order: %w", err)
-	//}
-
 	err = s.UpdateBalanceMinus(ctx, login, amount)
 	if err != nil {
 		return fmt.Errorf("failed to update balance: %w", err)
@@ -368,6 +338,9 @@ func (s *Storage) GetWithdrawals(ctx context.Context, login string) ([]Withdrawa
 		}
 
 		withdrawals = append(withdrawals, withdrawal)
+	}
+	if err := rows.Err(); err != nil {
+		return []Withdrawals{}, fmt.Errorf("failed to get withdrawals: %w", err)
 	}
 
 	if len(withdrawals) == 0 {
