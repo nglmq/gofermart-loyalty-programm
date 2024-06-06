@@ -138,11 +138,11 @@ func ActualiseOrderData(updater DataUpdater) error {
 			continue
 		}
 		//
-		//slog.Info("ORDER DATA FOR UPDATE BALANCE", order.Accrual, order.Number, order.Number)
-		//if err := updater.UpdateBalancePlus(context.Background(), order.Accrual, order.Number); err != nil {
-		//	slog.Info("Error updating balance for order: ", orderID, err)
-		//	continue
-		//}
+		slog.Info("ORDER DATA FOR UPDATE BALANCE", order.Number)
+		if err := updater.UpdateBalancePlus(context.Background(), order.Accrual, order.Number); err != nil {
+			slog.Info("Error updating balance for order: ", orderID, err)
+			return err
+		}
 
 		if err := updater.UpdateOrderStatus(context.Background(), order.Accrual, order.Status, order.Number); err != nil {
 			slog.Info("Error updating order status for order: ", orderID, err)
